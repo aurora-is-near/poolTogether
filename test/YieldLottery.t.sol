@@ -34,6 +34,7 @@ contract CounterTest is Test {
         buyTicket(user1, 100);
         buyTicket(user2, 200);
         buyTicket(user3, 300);
+        lottery.stake();
         vm.warp(block.timestamp + 10 days);
         lottery.concludeEpoch(user1);
         vm.warp(block.timestamp + 2 days + 1);

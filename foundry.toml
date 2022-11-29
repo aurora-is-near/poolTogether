@@ -4,4 +4,7 @@ out = 'out'
 libs = ['lib']
 gas_reports = ["*"]
 
+[rpc_endpoints]
+AURORA_RPC = "https://mainnet.aurora.dev/"
+
 # See more config options https://github.com/foundry-rs/foundry/tree/master/config

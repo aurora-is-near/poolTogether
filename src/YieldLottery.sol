@@ -101,15 +101,15 @@ contract YieldLottery {
     // @dev Function checks that the epoch is live and within the "betting window"
     //      It then updates a mapping and stakes the user's aurora tokens
     function buyTickets(uint256 _amount) external notPaused {
-        Epoch storage currentEpoch = epochs[epochs.length - 1];
+        uint epochId = epochs.length - 1;
+        Epoch memory currentEpoch = epochs[epochId];
         require(currentEpoch.status == Status.Active, "NO_LIVE_EPOCHS");
         require(currentEpoch.startTime + openWindow > block.timestamp, "EPOCH_CLOSED");
         aurora.transferFrom(msg.sender, address(this), _amount);
-        userTickets[epochs.length - 1][msg.sender].amount += _amount;
-        jetStaking.stake(_amount);
-        currentEpoch.initialBal += _amount;
+        userTickets[epochId][msg.sender].amount += _amount;
+        epochs[epochId].initialBal += _amount;
 
-        emit Staked(msg.sender, epochs.length - 1, _amount);
+        emit Staked(msg.sender, epochId, _amount);
     }
 
     // @notice Allows users to claim their tokens after epoch is finished
@@ -175,6 +175,10 @@ contract YieldLottery {
                     HELPER FUNCTIONS
     /////////////////////////////////////////////////////*/
 
+    function stake() external onlyAdmin {
+        jetStaking.stake(aurora.balanceOf(address(this)));
+    }
+
     function setAdmin(address _admin) external onlyAdmin {
         admin = _admin;
     }
@@ -185,5 +189,9 @@ contract YieldLottery {
 
     function pause() external onlyAdmin {
         paused = true;
+    }
+
+    function unPause() external onlyAdmin {
+        paused = false;
     }
 }
