@@ -198,6 +198,14 @@ contract YieldLottery {
         return uint256(value[0]);
     }
 
+    // @notice Function computes the winner for a specific epoch
+    // @param epochId Id of epoch we want to compute winner for
+    // @dev The winner is computed by getting a random uint256 number
+    //      We then divide this random number by the total aurora deposited
+    //      in the specified epoch, and take the remainder. (we add 1 because
+    //      the modulo can be 0 - n-1, and we need a number from 1 to n)
+    //      Whicheve address has a *cumulative* aurora balance higher than the
+    //      winning number is the winning address.
     function computeWinner(uint256 epochId) public returns (address) {
         uint256 randNum = randomSeed();
         uint256 totalAurora = epochs[epochId].finalBal;
