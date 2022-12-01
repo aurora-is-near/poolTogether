@@ -9,5 +9,5 @@ interface IJetStaking {
     function getUserShares(address account) external view returns (uint256);
     function getTotalAmountOfStakedAurora() external view returns (uint256);
     function totalAuroraShares() external view returns (uint256);
-     function unstakeAll() external;
+    function unstakeAll() external;
 }

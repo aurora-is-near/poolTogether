@@ -21,6 +21,8 @@ import "./interfaces/IJetStaking.sol";
  *     Solution: The selection of the winner will be outsourced to a trusted admin. Said admin will receive a list 
  *               (via emitted events) of user addresses and their corresponding aurora staked, and will generate a winner.
  *               Would recommend to use one aurora one ticket - otherwise incentivises users to spread aurora across multiple wallets
+ *     *Update: Solution for randomness has been updated - it no longer depends on an admin choosing the winner, but rather uses 
+ *              a host function that pulls randomness from the NEAR blockchain.
  */
 
 contract YieldLottery {
@@ -40,10 +42,17 @@ contract YieldLottery {
     Epoch[] public epochs;
     // Mapping of epochId => address => Position
     mapping(uint256 => mapping(address => Position)) public userTickets;
+    // Helper mapping for calculating winner
+    mapping(uint256 => Tickets[]) public cumulativeTickets;
 
     enum Status {
         Active,
         Ended
+    }
+
+    struct Tickets {
+        address owner;
+        uint256 amountCumulative;
     }
 
     // Position represents a user's stake
@@ -77,6 +86,7 @@ contract YieldLottery {
 
     constructor(address _admin) {
         admin = _admin;
+        paused = true;
     }
 
     // Initialization of state variables
@@ -94,6 +104,8 @@ contract YieldLottery {
             }
         }
         aurora.approve(address(jetStaking), type(uint256).max);
+        newEpoch();
+        paused = false;
     }
 
     // @notice Allows users to buy tickets in the current epoch
@@ -107,6 +119,7 @@ contract YieldLottery {
         require(currentEpoch.startTime + openWindow > block.timestamp, "EPOCH_CLOSED");
         aurora.transferFrom(msg.sender, address(this), _amount);
         userTickets[epochId][msg.sender].amount += _amount;
+        cumulativeTickets[epochId] = Tickets(msg.sender, currentEpoch.initialBal + _amount);
         epochs[epochId].initialBal += _amount;
 
         emit Staked(msg.sender, epochId, _amount);
@@ -143,14 +156,14 @@ contract YieldLottery {
         claimTickets(epochs.length - 2);
     }
 
-    // @notice Allows admin to close an epoch and decide the winner
-    // @param _winner Winning address for the currentEpoch
+    // @notice Allows admin to close an epoch and computes the winner
     // @dev Function updates epoch variables and moves all rewardstoPending.
-    function concludeEpoch(address _winner) external onlyAdmin {
+    function concludeEpoch() external onlyAdmin {
         Epoch storage currentEpoch = epochs[epochs.length - 1];
         require(currentEpoch.status == Status.Active, "NO_LIVE_EPOCH");
+        address winner = computeWinner(epochs.length - 1);
         currentEpoch.endTime = block.timestamp;
-        currentEpoch.winner = _winner;
+        currentEpoch.winner = winner;
         currentEpoch.status = Status.Ended;
         uint256 auroraBal = (jetStaking.getTotalAmountOfStakedAurora() * jetStaking.getUserShares(address(this)))
             / jetStaking.totalAuroraShares();
@@ -167,13 +180,39 @@ contract YieldLottery {
     }
 
     // @notice Creates a new epoch and pushes to the array
-    function newEpoch() external onlyAdmin {
+    function newEpoch() public onlyAdmin {
         epochs.push(Epoch(block.timestamp, 0, 0, 0, address(0), false, Status.Active));
     }
 
     /*/////////////////////////////////////////////////////
                     HELPER FUNCTIONS
     /////////////////////////////////////////////////////*/
+
+    function randomSeed() public returns (uint256) {
+        bytes32[1] memory value;
+
+        assembly {
+            let ret := call(gas(), 0xc104f4840573bed437190daf5d2898c2bdf928ac, 0, 0, 0, value, 32)
+        }
+
+        return uint256(value[0]);
+    }
+
+    function computeWinner(uint256 epochId) public returns (address) {
+        uint256 randNum = randomSeed();
+        uint256 totalAurora = epochs[epochId].finalBal;
+        uint256 winningNum = (randNum % totalAurora) + 1;
+        Tickets[] memory tickets = cumulativeTickets[epochId];
+        uint256 _length = tickets.length;
+        for(uint i; i < _length;) {
+            if(tickets[i].amountCumulative >= winningNum) {
+                return tickets[i].owner;
+            }
+            unchecked {
+                ++i;
+            }
+        }
+    }
 
     function stake() external onlyAdmin {
         jetStaking.stake(aurora.balanceOf(address(this)));
@@ -194,4 +233,5 @@ contract YieldLottery {
     function unPause() external onlyAdmin {
         paused = false;
     }
+
 }

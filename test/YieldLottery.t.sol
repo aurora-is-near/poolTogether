@@ -3,7 +3,7 @@ pragma solidity ^0.8.13;
 import "forge-std/Test.sol";
 import "../src/YieldLottery.sol";
 
-contract CounterTest is Test {
+contract YieldTest is Test {
     YieldLottery public lottery;
     address public constant aurora = 0x8BEc47865aDe3B172A928df8f990Bc7f2A3b9f79;
     address public constant jetStaking = 0xccc2b1aD21666A5847A804a73a41F904C4a4A0Ec;
@@ -30,7 +30,6 @@ contract CounterTest is Test {
     }
 
     function testFullFunctionality() public {
-        lottery.newEpoch();
         buyTicket(user1, 100);
         buyTicket(user2, 200);
         buyTicket(user3, 300);
@@ -46,13 +45,12 @@ contract CounterTest is Test {
         assert(IERC20(aurora).balanceOf(user2) == 200);
         assert(IERC20(aurora).balanceOf(user3) == 300);
 
-        for(uint i; i < streamTokens.length;) {
+        for (uint256 i; i < streamTokens.length;) {
             assert(IERC20(streamTokens[i]).balanceOf(user1) > 0);
             unchecked {
                 i++;
             }
         }
-
     }
 
     function buyTicket(address user, uint256 amount) public {
@@ -68,5 +66,4 @@ contract CounterTest is Test {
         lottery.claimTickets(epochId);
         vm.stopPrank();
     }
-    
 }
