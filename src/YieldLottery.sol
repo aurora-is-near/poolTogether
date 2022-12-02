@@ -119,7 +119,7 @@ contract YieldLottery {
         require(currentEpoch.startTime + openWindow > block.timestamp, "EPOCH_CLOSED");
         aurora.transferFrom(msg.sender, address(this), _amount);
         userTickets[epochId][msg.sender].amount += _amount;
-        cumulativeTickets[epochId] = Tickets(msg.sender, currentEpoch.initialBal + _amount);
+        cumulativeTickets[epochId].push(Tickets(msg.sender, currentEpoch.initialBal + _amount));
         epochs[epochId].initialBal += _amount;
 
         emit Staked(msg.sender, epochId, _amount);
@@ -206,15 +206,15 @@ contract YieldLottery {
     //      the modulo can be 0 - n-1, and we need a number from 1 to n)
     //      Whicheve address has a *cumulative* aurora balance higher than the
     //      winning number is the winning address.
-    function computeWinner(uint256 epochId) public returns (address) {
+    function computeWinner(uint256 epochId) public returns (address winner) {
         uint256 randNum = randomSeed();
-        uint256 totalAurora = epochs[epochId].finalBal;
+        uint256 totalAurora = epochs[epochId].initialBal;
         uint256 winningNum = (randNum % totalAurora) + 1;
         Tickets[] memory tickets = cumulativeTickets[epochId];
         uint256 _length = tickets.length;
         for(uint i; i < _length;) {
             if(tickets[i].amountCumulative >= winningNum) {
-                return tickets[i].owner;
+                winner = tickets[i].owner;
             }
             unchecked {
                 ++i;
