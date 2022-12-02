@@ -18,11 +18,11 @@ import "./interfaces/IJetStaking.sol";
  *      - Where to get source of randomness - the EVM is inherently deterministic, hence its virtually impossible 
  *        to achieve this *within* the blockchain. Blockhash, blockTimestamp, nonce etc. can be gamed easily.
  * 
- *     Solution: The selection of the winner will be outsourced to a trusted admin. Said admin will receive a list 
- *               (via emitted events) of user addresses and their corresponding aurora staked, and will generate a winner.
- *               Would recommend to use one aurora one ticket - otherwise incentivises users to spread aurora across multiple wallets
- *     *Update: Solution for randomness has been updated - it no longer depends on an admin choosing the winner, but rather uses 
- *              a host function that pulls randomness from the NEAR blockchain.
+ *     Solution: The source of randomness is achieved thanks to the NEAR blockchain including a random number in 
+ *               every block. This number is then used to select a winner. There is one caveat however, which is 
+ *               that near validators can choose to not produce a block if the random number is "not of their liking"
+ *               However, I believe this will have minimal impact as this "manipulation" comes with a lot of reputational
+ *               and potentially financial cost to the validator.
  */
 
 contract YieldLottery {
