@@ -14,25 +14,18 @@ contract YieldTest is Test {
     address public user1 = address(11);
     address public user2 = address(22);
     address public user3 = address(33);
+    uint256 public ticketPrice = 200;
+    uint256[] public nums;
 
     function setUp() public {
         lottery = new YieldLottery(address(this));
-        lottery.init(1 hours, aurora, jetStaking, streamTokens);
-    }
-
-    function testCreateEpoch() public {
-        lottery.newEpoch();
-    }
-
-    function testBuyTicket() public {
-        lottery.newEpoch();
-        buyTicket(user1, 100);
+        lottery.init(1 hours, ticketPrice, aurora, jetStaking, streamTokens);
     }
 
     function testFullFunctionality() public {
-        buyTicket(user1, 100);
-        buyTicket(user2, 200);
-        buyTicket(user3, 300);
+        buyTicket(user1, 10);
+        buyTicket(user2, 10);
+        buyTicket(user3, 10);
         lottery.stake();
         vm.warp(block.timestamp + 10 days);
         lottery.concludeEpoch();
@@ -54,7 +47,7 @@ contract YieldTest is Test {
     }
 
     function buyTicket(address user, uint256 amount) public {
-        deal(aurora, user, amount);
+        deal(aurora, user, amount * ticketPrice);
         vm.startPrank(user);
         IERC20(aurora).approve(address(lottery), type(uint256).max);
         lottery.buyTickets(amount);

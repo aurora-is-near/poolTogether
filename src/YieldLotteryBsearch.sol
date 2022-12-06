@@ -25,11 +25,9 @@ import "./interfaces/IJetStaking.sol";
  *               and potentially financial cost to the validator.
  */
 
-contract YieldLottery {
+contract YieldLotteryBsearch {
     // Window of time within which users can deposit aurora
     uint256 public openWindow;
-    // Cost of 1 ticket
-    uint256 public ticketPrice;
     // Admin of the contract
     address public admin;
     // Allows control over deposits
@@ -45,11 +43,16 @@ contract YieldLottery {
     // Mapping of epochId => address => Position
     mapping(uint256 => mapping(address => Position)) public userTickets;
     // Helper mapping for calculating winner
-    address[] public ticketOwners;
+    mapping(uint256 => Tickets[]) public cumulativeTickets;
 
     enum Status {
         Active,
         Ended
+    }
+
+    struct Tickets {
+        address owner;
+        uint256 amountCumulative;
     }
 
     // Position represents a user's stake
@@ -64,8 +67,6 @@ contract YieldLottery {
         uint256 endTime;
         uint256 initialBal;
         uint256 finalBal;
-        uint256 totalTickets;
-        uint256 startIndex;
         address winner;
         bool withdrawalOpen;
         Status status;
@@ -89,12 +90,11 @@ contract YieldLottery {
     }
 
     // Initialization of state variables
-    function init(uint256 _openWindow, uint256 _ticketPrice, address _aurora, address _jetStaking, address[] calldata _streamTokens)
+    function init(uint256 _openWindow, address _aurora, address _jetStaking, address[] calldata _streamTokens)
         external
         onlyAdmin
     {
         openWindow = _openWindow;
-        ticketPrice = _ticketPrice;
         aurora = IERC20(_aurora);
         jetStaking = IJetStaking(_jetStaking);
         for (uint256 i; i < _streamTokens.length;) {
@@ -104,7 +104,7 @@ contract YieldLottery {
             }
         }
         aurora.approve(address(jetStaking), type(uint256).max);
-        newEpoch(0);
+        newEpoch();
         paused = false;
     }
 
@@ -112,24 +112,17 @@ contract YieldLottery {
     // @param _amount Amount of aurora tokens to stake
     // @dev Function checks that the epoch is live and within the "betting window"
     //      It then updates a mapping and stakes the user's aurora tokens
-    function buyTickets(uint256 _tickets) external notPaused {
+    function buyTickets(uint256 _amount) external notPaused {
         uint256 epochId = epochs.length - 1;
-        uint256 cost = _tickets * ticketPrice;
         Epoch memory currentEpoch = epochs[epochId];
         require(currentEpoch.status == Status.Active, "NO_LIVE_EPOCHS");
         require(currentEpoch.startTime + openWindow > block.timestamp, "EPOCH_CLOSED");
-        aurora.transferFrom(msg.sender, address(this), cost);
-        userTickets[epochId][msg.sender].amount += cost;
-        epochs[epochId].initialBal += cost;
-        epochs[epochId].totalTickets += _tickets;
-        for(uint256 i; i < _tickets;) {
-            ticketOwners.push(msg.sender);
-            unchecked {
-                ++i;
-            }
-        }
+        aurora.transferFrom(msg.sender, address(this), _amount);
+        userTickets[epochId][msg.sender].amount += _amount;
+        cumulativeTickets[epochId].push(Tickets(msg.sender, currentEpoch.initialBal + _amount));
+        epochs[epochId].initialBal += _amount;
 
-        emit Staked(msg.sender, epochId, _tickets);
+        emit Staked(msg.sender, epochId, _amount);
     }
 
     // @notice Allows users to claim their tokens after epoch is finished
@@ -169,10 +162,10 @@ contract YieldLottery {
         uint256 epochId = epochs.length - 1;
         Epoch storage currentEpoch = epochs[epochId];
         require(currentEpoch.status == Status.Active, "NO_LIVE_EPOCH");
-        uint256 winningIndex = currentEpoch.startIndex + computeWinner(epochId);
+        address winningAddress = computeWinner(epochId);
         currentEpoch.endTime = block.timestamp;
         currentEpoch.status = Status.Ended;
-        currentEpoch.winner = ticketOwners[winningIndex];
+        // currentEpoch.winner = winningAddress;
         uint256 auroraBal = (jetStaking.getTotalAmountOfStakedAurora() * jetStaking.getUserShares(address(this)))
             / jetStaking.totalAuroraShares();
         currentEpoch.finalBal = auroraBal;
@@ -188,8 +181,8 @@ contract YieldLottery {
     }
 
     // @notice Creates a new epoch and pushes to the array
-    function newEpoch(uint256 _startIndex) public onlyAdmin {
-        epochs.push(Epoch(block.timestamp, 0, 0, 0, 0, _startIndex, address(0), false, Status.Active));
+    function newEpoch() public onlyAdmin {
+        epochs.push(Epoch(block.timestamp, 0, 0, 0, address(0), false, Status.Active));
     }
 
     /*/////////////////////////////////////////////////////
@@ -214,10 +207,45 @@ contract YieldLottery {
     //      the modulo can be 0 - n-1, and we need a number from 1 to n)
     //      Whicheve address has a *cumulative* aurora balance higher than the
     //      winning number is the winning address.
-    function computeWinner(uint256 epochId) public returns (uint256 winningNum) {
+    function computeWinner(uint256 epochId) public returns (address winningAddress) {
         uint256 randNum = randomSeed();
         uint256 totalAurora = epochs[epochId].initialBal;
-        winningNum = (randNum % totalAurora) + 1;
+        uint256 winningNum = (randNum % totalAurora) + 1;
+        winningAddress = binarySearch(cumulativeTickets[epochId], winningNum);
+    }
+
+    function binarySearch(Tickets[] memory arr, uint256 value) public pure returns (address) {
+        // First, we need to store the start and end indices of the array
+        uint256 start = 0;
+        uint256 end = arr.length - 1;
+
+        // We also need to store the index of the lowest value that is larger than the target value
+        uint256 nextIndex = 0;
+
+        // Then, we can use a loop to perform the binary search
+        while (start <= end) {
+            // Calculate the midpoint of the current array section
+            uint256 mid = (start + end) / 2;
+
+            // If the value at the midpoint is the target value, we can return the index
+            if (arr[mid].amountCumulative == value) {
+                return arr[mid].owner;
+            }
+
+            // If the value at the midpoint is larger than the target value, we can update
+            // the next index and adjust the end index of the array
+            if (arr[mid].amountCumulative > value) {
+                nextIndex = mid;
+                end = mid - 1;
+            } 
+            // Otherwise, we can adjust the start index of the array
+            else {
+                start = mid + 1;
+            }
+        }
+
+        // If the value is not found in the array, we can return the index of the next value
+        return arr[nextIndex].owner;
     }
 
     function stake() external onlyAdmin {
@@ -230,10 +258,6 @@ contract YieldLottery {
 
     function setOpenWindow(uint256 _time) external onlyAdmin {
         openWindow = _time;
-    }
-
-    function setTicketPrice(uint256 _price) external onlyAdmin {
-        ticketPrice = _price;
     }
 
     function pause() external onlyAdmin {
