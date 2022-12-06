@@ -216,25 +216,25 @@ contract YieldLotteryBsearch {
 
     function binarySearch(Tickets[] memory arr, uint256 value) public pure returns (address) {
         // First, we need to store the start and end indices of the array
-        uint256 start = 0;
-        uint256 end = arr.length - 1;
+        int256 start = 0;
+        int256 end = int256(arr.length - 1);
 
         // We also need to store the index of the lowest value that is larger than the target value
-        uint256 nextIndex = 0;
+        int256 nextIndex = 0;
 
         // Then, we can use a loop to perform the binary search
         while (start <= end) {
             // Calculate the midpoint of the current array section
-            uint256 mid = (start + end) / 2;
+            int256 mid = (start + end) / 2;
 
             // If the value at the midpoint is the target value, we can return the index
-            if (arr[mid].amountCumulative == value) {
-                return arr[mid].owner;
+            if (arr[uint256(mid)].amountCumulative == value) {
+                return arr[uint256(mid)].owner;
             }
 
             // If the value at the midpoint is larger than the target value, we can update
             // the next index and adjust the end index of the array
-            if (arr[mid].amountCumulative > value) {
+            if (arr[uint256(mid)].amountCumulative > value) {
                 nextIndex = mid;
                 end = mid - 1;
             } 
@@ -245,7 +245,7 @@ contract YieldLotteryBsearch {
         }
 
         // If the value is not found in the array, we can return the index of the next value
-        return arr[nextIndex].owner;
+        return arr[uint256(nextIndex)].owner;
     }
 
     function stake() external onlyAdmin {
