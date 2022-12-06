@@ -251,7 +251,7 @@ contract YieldLottery {
         paused = false;
     }
 
-    function getWinner(uint256 _epochId) view external returns (address) {
+    function getWinner(uint256 _epochId) external view returns (address) {
         return epochs[_epochId].winner;
     }
 }
