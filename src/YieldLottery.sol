@@ -128,8 +128,8 @@ contract YieldLottery {
         require(currentEpoch.startTime + openWindow > block.timestamp, "EPOCH_CLOSED");
         aurora.transferFrom(msg.sender, address(this), cost);
         Position storage position = userTickets[epochId][msg.sender];
-        position.startId = (currentEpoch.initialBal / ticketPrice) + 1;
-        position.finalId = position.startId + _tickets;
+        position.startId = currentEpoch.initialBal / ticketPrice;
+        position.finalId = position.startId + _tickets - 1;
         epochs[epochId].initialBal += cost;
 
         emit Staked(msg.sender, epochId, _tickets);
@@ -216,12 +216,11 @@ contract YieldLottery {
     // @param epochId Id of epoch we want to compute winner for
     // @dev The winner is computed by getting a random uint256 number
     //      We then divide this random number by the total aurora deposited
-    //      in the specified epoch, and take the remainder. (we add 1 because
-    //      the modulo can be 0 - n-1, and we need a number from 1 to n).
+    //      in the specified epoch, and take the remainder. 
     function computeWinner(uint256 epochId) public returns (uint256 winningNum) {
         uint256 randNum = randomSeed();
         uint256 totalTickets = epochs[epochId].initialBal / ticketPrice;
-        winningNum = (randNum % totalTickets) + 1;
+        winningNum = (randNum % totalTickets);
     }
 
     function stake() external onlyAdmin {
