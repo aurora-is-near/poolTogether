@@ -5,13 +5,13 @@ import "openzeppelin-contracts/token/ERC20/IERC20.sol";
 import "./interfaces/IJetStaking.sol";
 
 /**
-   _____                                     .__          __    __                       
-  /  _  \  __ _________  ________________    |  |   _____/  |__/  |_  ___________ ___.__.
- /  /_\  \|  |  \_  __ \/  _ \_  __ \__  \   |  |  /  _ \   __\   __\/ __ \_  __ <   |  |
-/    |    \  |  /|  | \(  <_> )  | \// __ \_ |  |_(  <_> )  |  |  | \  ___/|  | \/\___  |
-\____|__  /____/ |__|   \____/|__|  (____  / |____/\____/|__|  |__|  \___  >__|   / ____|
-        \/                               \/                              \/       \/     
-
+ *    _____                                     .__          __    __
+ *   /  _  \  __ _________  ________________    |  |   _____/  |__/  |_  ___________ ___.__.
+ *  /  /_\  \|  |  \_  __ \/  _ \_  __ \__  \   |  |  /  _ \   __\   __\/ __ \_  __ <   |  |
+ * /    |    \  |  /|  | \(  <_> )  | \// __ \_ |  |_(  <_> )  |  |  | \  ___/|  | \/\___  |
+ * \____|__  /____/ |__|   \____/|__|  (____  / |____/\____/|__|  |__|  \___  >__|   / ____|
+ *         \/                               \/                              \/       \/
+ *
  * @title Aurora Yield Lottery
  * @author Aurora Team
  *
@@ -51,8 +51,6 @@ contract YieldLottery {
     Epoch[] public epochs;
     // Mapping of epochId => address => Position
     mapping(uint256 => mapping(address => Position)) public userTickets;
-    // Helper mapping for calculating winner
-    address[] public ticketOwners;
 
     enum Status {
         Active,
@@ -61,7 +59,8 @@ contract YieldLottery {
 
     // Position represents a user's stake
     struct Position {
-        uint256 amount;
+        uint256 startId;
+        uint256 finalId;
         bool claimed;
     }
 
@@ -71,9 +70,7 @@ contract YieldLottery {
         uint256 endTime;
         uint256 initialBal;
         uint256 finalBal;
-        uint256 totalTickets;
-        uint256 startIndex;
-        address winner;
+        uint256 winningId;
         bool withdrawalOpen;
         Status status;
     }
@@ -96,10 +93,13 @@ contract YieldLottery {
     }
 
     // Initialization of state variables
-    function init(uint256 _openWindow, uint256 _ticketPrice, address _aurora, address _jetStaking, address[] calldata _streamTokens)
-        external
-        onlyAdmin
-    {
+    function init(
+        uint256 _openWindow,
+        uint256 _ticketPrice,
+        address _aurora,
+        address _jetStaking,
+        address[] calldata _streamTokens
+    ) external onlyAdmin {
         openWindow = _openWindow;
         ticketPrice = _ticketPrice;
         aurora = IERC20(_aurora);
@@ -111,30 +111,26 @@ contract YieldLottery {
             }
         }
         aurora.approve(address(jetStaking), type(uint256).max);
-        newEpoch(0);
+        newEpoch();
         paused = false;
     }
 
     // @notice Allows users to buy tickets in the current epoch
-    // @param _amount Amount of aurora tokens to stake
+    // @param _tickets Amount of tickets to buy
     // @dev Function checks that the epoch is live and within the "betting window"
     //      It then updates a mapping and stakes the user's aurora tokens
     function buyTickets(uint256 _tickets) external notPaused {
+        require(_tickets != 0, "TICKET_AMOUNT_MUST_BE_>_0");
         uint256 epochId = epochs.length - 1;
         uint256 cost = _tickets * ticketPrice;
         Epoch memory currentEpoch = epochs[epochId];
         require(currentEpoch.status == Status.Active, "NO_LIVE_EPOCHS");
         require(currentEpoch.startTime + openWindow > block.timestamp, "EPOCH_CLOSED");
         aurora.transferFrom(msg.sender, address(this), cost);
-        userTickets[epochId][msg.sender].amount += cost;
+        Position storage position = userTickets[epochId][msg.sender];
+        position.startId = (currentEpoch.initialBal / ticketPrice) + 1;
+        position.finalId = position.startId + _tickets;
         epochs[epochId].initialBal += cost;
-        epochs[epochId].totalTickets += _tickets;
-        for(uint256 i; i < _tickets;) {
-            ticketOwners.push(msg.sender);
-            unchecked {
-                ++i;
-            }
-        }
 
         emit Staked(msg.sender, epochId, _tickets);
     }
@@ -150,9 +146,13 @@ contract YieldLottery {
         require(epoch.status == Status.Ended, "EPOCH_NOT_CONCLUDED");
         require(epoch.withdrawalOpen, "WITHDRAWAL_UNAVAILABLE");
         require(!userTickets[_epochId][msg.sender].claimed, "ALREADY_CLAIMED");
-        uint256 balance = userTickets[_epochId][msg.sender].amount;
+        Position memory userPosition = userTickets[_epochId][msg.sender];
+        uint256 balance = (userPosition.finalId - userPosition.startId) * ticketPrice;
         aurora.transfer(msg.sender, balance);
-        if (epoch.winner == msg.sender) {
+        if (
+            epoch.winningId > userTickets[_epochId][msg.sender].startId
+                && epoch.winningId < userTickets[_epochId][msg.sender].finalId
+        ) {
             uint256 prize = epoch.finalBal - epoch.initialBal;
             aurora.transfer(msg.sender, prize);
             for (uint256 i; i < streamTokens.length;) {
@@ -176,10 +176,9 @@ contract YieldLottery {
         uint256 epochId = epochs.length - 1;
         Epoch storage currentEpoch = epochs[epochId];
         require(currentEpoch.status == Status.Active, "NO_LIVE_EPOCH");
-        uint256 winningIndex = currentEpoch.startIndex + computeWinner(epochId);
+        currentEpoch.winningId = computeWinner(epochId);
         currentEpoch.endTime = block.timestamp;
         currentEpoch.status = Status.Ended;
-        currentEpoch.winner = ticketOwners[winningIndex];
         uint256 auroraBal = (jetStaking.getTotalAmountOfStakedAurora() * jetStaking.getUserShares(address(this)))
             / jetStaking.totalAuroraShares();
         currentEpoch.finalBal = auroraBal;
@@ -195,8 +194,8 @@ contract YieldLottery {
     }
 
     // @notice Creates a new epoch and pushes to the array
-    function newEpoch(uint256 _startIndex) public onlyAdmin {
-        epochs.push(Epoch(block.timestamp, 0, 0, 0, 0, _startIndex, address(0), false, Status.Active));
+    function newEpoch() public onlyAdmin {
+        epochs.push(Epoch(block.timestamp, 0, 0, 0, 0, false, Status.Active));
     }
 
     /*/////////////////////////////////////////////////////
@@ -218,13 +217,11 @@ contract YieldLottery {
     // @dev The winner is computed by getting a random uint256 number
     //      We then divide this random number by the total aurora deposited
     //      in the specified epoch, and take the remainder. (we add 1 because
-    //      the modulo can be 0 - n-1, and we need a number from 1 to n)
-    //      Whicheve address has a *cumulative* aurora balance higher than the
-    //      winning number is the winning address.
+    //      the modulo can be 0 - n-1, and we need a number from 1 to n).
     function computeWinner(uint256 epochId) public returns (uint256 winningNum) {
         uint256 randNum = randomSeed();
-        uint256 totalAurora = epochs[epochId].initialBal;
-        winningNum = (randNum % totalAurora) + 1;
+        uint256 totalTickets = epochs[epochId].initialBal / ticketPrice;
+        winningNum = (randNum % totalTickets) + 1;
     }
 
     function stake() external onlyAdmin {
@@ -251,7 +248,20 @@ contract YieldLottery {
         paused = false;
     }
 
-    function getWinner(uint256 _epochId) external view returns (address) {
-        return epochs[_epochId].winner;
+    function getEpoch(uint256 _epochId)
+        public
+        view
+        returns (uint256, uint256, uint256, uint256, uint256, bool, Status)
+    {
+        Epoch memory epoch = epochs[_epochId];
+        return (
+            epoch.startTime,
+            epoch.endTime,
+            epoch.initialBal,
+            epoch.finalBal,
+            epoch.winningId,
+            epoch.withdrawalOpen,
+            epoch.status
+        );
     }
 }

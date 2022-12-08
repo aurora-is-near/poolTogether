@@ -23,9 +23,14 @@ contract YieldTest is Test {
     }
 
     function testFullFunctionality() public {
-        buyTicket(user1, 10);
-        buyTicket(user2, 10);
-        buyTicket(user3, 10);
+        for (uint256 i; i < 100; i++) {
+            buyTicket(user1, 20);
+            buyTicket(user2, 20);
+            buyTicket(user3, 20);
+            buyTicket(user1, 20);
+            buyTicket(user2, 20);
+            buyTicket(user3, 20);
+        }
         lottery.stake();
         vm.warp(block.timestamp + 10 days);
         lottery.concludeEpoch();
