@@ -50,7 +50,9 @@ contract YieldLottery {
     // Array of epochs
     Epoch[] public epochs;
     // Mapping of epochId => address => Position
-    mapping(uint256 => mapping(address => Position)) public userTickets;
+    mapping(uint256 => mapping(address => Position[])) public userTickets;
+    // Helps to keep track who has claimed
+    mapping(uint256 => mapping(address => bool)) public hasClaimed;
 
     enum Status {
         Active,
@@ -61,7 +63,6 @@ contract YieldLottery {
     struct Position {
         uint256 startId;
         uint256 finalId;
-        bool claimed;
     }
 
     // 1 Epoch == 1 "lottery game"
@@ -127,9 +128,11 @@ contract YieldLottery {
         require(currentEpoch.status == Status.Active, "NO_LIVE_EPOCHS");
         require(currentEpoch.startTime + openWindow > block.timestamp, "EPOCH_CLOSED");
         aurora.transferFrom(msg.sender, address(this), cost);
-        Position storage position = userTickets[epochId][msg.sender];
-        position.startId = currentEpoch.initialBal / ticketPrice;
-        position.finalId = position.startId + _tickets - 1;
+        Position memory newPosition = Position({
+            startId: currentEpoch.initialBal / ticketPrice,
+            finalId: currentEpoch.initialBal / ticketPrice + _tickets - 1
+        });
+        userTickets[epochId][msg.sender].push(newPosition);
         epochs[epochId].initialBal += cost;
 
         emit Staked(msg.sender, epochId, _tickets);
@@ -145,25 +148,29 @@ contract YieldLottery {
         Epoch memory epoch = epochs[_epochId];
         require(epoch.status == Status.Ended, "EPOCH_NOT_CONCLUDED");
         require(epoch.withdrawalOpen, "WITHDRAWAL_UNAVAILABLE");
-        require(!userTickets[_epochId][msg.sender].claimed, "ALREADY_CLAIMED");
-        Position memory userPosition = userTickets[_epochId][msg.sender];
-        uint256 balance = (userPosition.finalId - userPosition.startId + 1) * ticketPrice;
-        aurora.transfer(msg.sender, balance);
-        if (
-            epoch.winningId >= userTickets[_epochId][msg.sender].startId
-                && epoch.winningId < userTickets[_epochId][msg.sender].finalId
-        ) {
-            uint256 prize = epoch.finalBal - epoch.initialBal;
-            aurora.transfer(msg.sender, prize);
-            for (uint256 i; i < streamTokens.length;) {
-                uint256 bal = streamTokens[i].balanceOf(address(this));
-                streamTokens[i].transfer(msg.sender, bal);
-                unchecked {
-                    i++;
+        require(!hasClaimed[_epochId][msg.sender], "ALREADY_CLAIMED");
+        Position[] memory userPositions = userTickets[_epochId][msg.sender];
+        uint256 balance;
+        for (uint256 i; i < userPositions.length;) {
+            balance += (userPositions[i].finalId - userPositions[i].startId + 1) * ticketPrice;
+            if (epoch.winningId >= userPositions[i].startId && epoch.winningId <= userPositions[i].finalId) {
+                uint256 prize = epoch.finalBal - epoch.initialBal;
+                aurora.transfer(msg.sender, prize);
+                for (uint256 j; j < streamTokens.length;) {
+                    uint256 bal = streamTokens[j].balanceOf(address(this));
+                    streamTokens[j].transfer(msg.sender, bal);
+                    unchecked {
+                        j++;
+                    }
                 }
             }
+            unchecked {
+                i++;
+            }
         }
-        userTickets[_epochId][msg.sender].claimed = true;
+        aurora.transfer(msg.sender, balance);
+
+        hasClaimed[_epochId][msg.sender] = true;
     }
 
     function claimLatest() external {
@@ -216,7 +223,7 @@ contract YieldLottery {
     // @param epochId Id of epoch we want to compute winner for
     // @dev The winner is computed by getting a random uint256 number
     //      We then divide this random number by the total aurora deposited
-    //      in the specified epoch, and take the remainder. 
+    //      in the specified epoch, and take the remainder.
     function computeWinner(uint256 epochId) public returns (uint256 winningNum) {
         uint256 randNum = randomSeed();
         uint256 totalTickets = epochs[epochId].initialBal / ticketPrice;
