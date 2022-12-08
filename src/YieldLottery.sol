@@ -147,10 +147,10 @@ contract YieldLottery {
         require(epoch.withdrawalOpen, "WITHDRAWAL_UNAVAILABLE");
         require(!userTickets[_epochId][msg.sender].claimed, "ALREADY_CLAIMED");
         Position memory userPosition = userTickets[_epochId][msg.sender];
-        uint256 balance = (userPosition.finalId - userPosition.startId) * ticketPrice;
+        uint256 balance = (userPosition.finalId - userPosition.startId + 1) * ticketPrice;
         aurora.transfer(msg.sender, balance);
         if (
-            epoch.winningId > userTickets[_epochId][msg.sender].startId
+            epoch.winningId >= userTickets[_epochId][msg.sender].startId
                 && epoch.winningId < userTickets[_epochId][msg.sender].finalId
         ) {
             uint256 prize = epoch.finalBal - epoch.initialBal;
