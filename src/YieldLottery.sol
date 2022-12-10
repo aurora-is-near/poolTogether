@@ -61,8 +61,8 @@ contract YieldLottery {
 
     // Position represents a user's stake
     struct Position {
-        uint256 startId;
-        uint256 finalId;
+        uint64 startId;
+        uint64 finalId;
     }
 
     // 1 Epoch == 1 "lottery game"
@@ -76,7 +76,7 @@ contract YieldLottery {
         Status status;
     }
 
-    event Staked(address indexed user, uint256 indexed epochId, uint256 amount);
+    event Staked(address indexed user, uint256 indexed epochId, uint64 indexed startId);
 
     modifier onlyAdmin() {
         require(msg.sender == admin, "ONLY_ADMIN_CAN_CALL");
@@ -129,13 +129,13 @@ contract YieldLottery {
         require(currentEpoch.startTime + openWindow > block.timestamp, "EPOCH_CLOSED");
         aurora.transferFrom(msg.sender, address(this), cost);
         Position memory newPosition = Position({
-            startId: currentEpoch.initialBal / ticketPrice,
-            finalId: currentEpoch.initialBal / ticketPrice + _tickets - 1
+            startId: uint64(currentEpoch.initialBal / ticketPrice),
+            finalId: uint64(currentEpoch.initialBal / ticketPrice + _tickets - 1)
         });
         userTickets[epochId][msg.sender].push(newPosition);
         epochs[epochId].initialBal += cost;
 
-        emit Staked(msg.sender, epochId, _tickets);
+        emit Staked(msg.sender, epochId, newPosition.startId);
     }
 
     // @notice Allows users to claim their tokens after epoch is finished
@@ -155,7 +155,7 @@ contract YieldLottery {
             balance += (userPositions[i].finalId - userPositions[i].startId + 1) * ticketPrice;
             if (epoch.winningId >= userPositions[i].startId && epoch.winningId <= userPositions[i].finalId) {
                 uint256 prize = epoch.finalBal - epoch.initialBal;
-                aurora.transfer(msg.sender, prize);
+                balance += prize;
                 for (uint256 j; j < streamTokens.length;) {
                     uint256 bal = streamTokens[j].balanceOf(address(this));
                     streamTokens[j].transfer(msg.sender, bal);
