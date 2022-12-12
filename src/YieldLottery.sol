@@ -81,6 +81,9 @@ contract YieldLottery {
 
     event Initialized(uint256 Window, uint256 Price);
     event Staked(address indexed user, uint256 indexed epochId, uint64 indexed startId);
+    event NewAdmin(address indexed admin);
+    event NewTicketPrice(uint256 indexed price);
+    event NewTimeWindow(uint256 indexed time);
 
     modifier onlyAdmin() {
         require(msg.sender == admin, "ONLY_ADMIN_CAN_CALL");
@@ -134,7 +137,7 @@ contract YieldLottery {
         Epoch memory currentEpoch = epochs[epochId];
         require(currentEpoch.status == Status.Active, "NO_LIVE_EPOCHS");
         require(currentEpoch.startTime + openWindow > block.timestamp, "EPOCH_CLOSED");
-        // slither-disable-next-line reentrancy-benign
+        // slither-disable-next-line reentrancy-benign reentrancy-events
         aurora.safeTransferFrom(msg.sender, address(this), cost);
         Position memory newPosition = Position({
             startId: uint64(currentEpoch.initialBal / ticketPrice),
@@ -165,8 +168,9 @@ contract YieldLottery {
                 uint256 prize = epoch.finalBal - epoch.initialBal;
                 balance += prize;
                 for (uint256 j = 0; j < streamTokens.length;) {
+                     // slither-disable-next-line calls-loop
                     uint256 bal = streamTokens[j].balanceOf(address(this));
-                    // slither-disable-next-line reentrancy-benign
+                    // slither-disable-next-line reentrancy-benign reentrancy-events
                     streamTokens[j].safeTransfer(msg.sender, bal);
                     unchecked {
                         j++;
@@ -177,7 +181,7 @@ contract YieldLottery {
                 i++;
             }
         }
-        // slither-disable-next-line reentrancy-benign
+        // slither-disable-next-line reentrancy-benign reentrancy-events
         aurora.safeTransfer(msg.sender, balance);
 
         hasClaimed[_epochId][msg.sender] = true;
@@ -248,14 +252,20 @@ contract YieldLottery {
     function setAdmin(address _admin) external onlyAdmin {
         require(_admin != address(0), "CANNOT_SET_TO_ZERO");
         admin = _admin;
+
+        emit NewAdmin(_admin);
     }
 
     function setOpenWindow(uint256 _time) external onlyAdmin {
         openWindow = _time;
+
+        emit NewTimeWindow(_time);
     }
 
     function setTicketPrice(uint256 _price) external onlyAdmin {
         ticketPrice = _price;
+
+        emit NewTicketPrice(_price);
     }
 
     function pause() external onlyAdmin {
