@@ -1,0 +1,19 @@
+---
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: aurora-pool-together
+  title: "Aurora Pool Together"
+  description: |-
+    This project allows users to participate in a "lottery" with no downside.
+  tags:
+    - contract
+    - aurora
+  links: []
+  annotations:
+    aurora.dev/security-tier: "3"
+spec:
+  owner: aurora-plus-team
+  type: contract
+  lifecycle: testing
+  system: aurora-plus
