@@ -89,6 +89,7 @@ contract YieldLottery {
     }
 
     constructor(address _admin) {
+        require(_admin != address(0), "CANNOT_SET_TO_ZERO");
         admin = _admin;
         paused = true;
     }
@@ -127,6 +128,7 @@ contract YieldLottery {
         Epoch memory currentEpoch = epochs[epochId];
         require(currentEpoch.status == Status.Active, "NO_LIVE_EPOCHS");
         require(currentEpoch.startTime + openWindow > block.timestamp, "EPOCH_CLOSED");
+        // slither-disable-next-line reentrancy-events
         aurora.transferFrom(msg.sender, address(this), cost);
         Position memory newPosition = Position({
             startId: uint64(currentEpoch.initialBal / ticketPrice),
@@ -151,13 +153,14 @@ contract YieldLottery {
         require(!hasClaimed[_epochId][msg.sender], "ALREADY_CLAIMED");
         Position[] memory userPositions = userTickets[_epochId][msg.sender];
         uint256 balance;
-        for (uint256 i; i < userPositions.length;) {
+        for (uint256 i = 0; i < userPositions.length;) {
             balance += (userPositions[i].finalId - userPositions[i].startId + 1) * ticketPrice;
             if (epoch.winningId >= userPositions[i].startId && epoch.winningId <= userPositions[i].finalId) {
                 uint256 prize = epoch.finalBal - epoch.initialBal;
                 balance += prize;
-                for (uint256 j; j < streamTokens.length;) {
+                for (uint256 j = 0; j < streamTokens.length;) {
                     uint256 bal = streamTokens[j].balanceOf(address(this));
+                    // slither-disable-next-line reentrancy-events
                     streamTokens[j].transfer(msg.sender, bal);
                     unchecked {
                         j++;
@@ -168,6 +171,7 @@ contract YieldLottery {
                 i++;
             }
         }
+        // slither-disable-next-line reentrancy-events
         aurora.transfer(msg.sender, balance);
 
         hasClaimed[_epochId][msg.sender] = true;
