@@ -235,6 +235,7 @@ contract YieldLottery {
     }
 
     function setAdmin(address _admin) external onlyAdmin {
+        require(_admin != address(0), "CANNOT_SET_TO_ZERO");
         admin = _admin;
     }
 
