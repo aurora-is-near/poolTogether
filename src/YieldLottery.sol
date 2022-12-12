@@ -2,6 +2,7 @@
 pragma solidity ^0.8.13;
 
 import "openzeppelin-contracts/token/ERC20/IERC20.sol";
+import "openzeppelin-contracts/token/ERC20/utils/SafeERC20.sol";
 import "./interfaces/IJetStaking.sol";
 
 /**
@@ -33,6 +34,8 @@ import "./interfaces/IJetStaking.sol";
  */
 
 contract YieldLottery {
+    using SafeERC20 for IERC20;
+
     // Window of time within which users can deposit aurora
     uint256 public openWindow;
     // Cost of 1 ticket
@@ -76,6 +79,7 @@ contract YieldLottery {
         Status status;
     }
 
+    event Initialized(uint256 Window, uint256 Price);
     event Staked(address indexed user, uint256 indexed epochId, uint64 indexed startId);
 
     modifier onlyAdmin() {
@@ -115,6 +119,8 @@ contract YieldLottery {
         aurora.approve(address(jetStaking), type(uint256).max);
         newEpoch();
         paused = false;
+
+        emit Initialized(_openWindow, _ticketPrice);
     }
 
     // @notice Allows users to buy tickets in the current epoch
@@ -129,7 +135,7 @@ contract YieldLottery {
         require(currentEpoch.status == Status.Active, "NO_LIVE_EPOCHS");
         require(currentEpoch.startTime + openWindow > block.timestamp, "EPOCH_CLOSED");
         // slither-disable-next-line reentrancy-benign
-        aurora.transferFrom(msg.sender, address(this), cost);
+        aurora.safeTransferFrom(msg.sender, address(this), cost);
         Position memory newPosition = Position({
             startId: uint64(currentEpoch.initialBal / ticketPrice),
             finalId: uint64(currentEpoch.initialBal / ticketPrice + _tickets - 1)
@@ -161,7 +167,7 @@ contract YieldLottery {
                 for (uint256 j = 0; j < streamTokens.length;) {
                     uint256 bal = streamTokens[j].balanceOf(address(this));
                     // slither-disable-next-line reentrancy-benign
-                    streamTokens[j].transfer(msg.sender, bal);
+                    streamTokens[j].safeTransfer(msg.sender, bal);
                     unchecked {
                         j++;
                     }
@@ -172,7 +178,7 @@ contract YieldLottery {
             }
         }
         // slither-disable-next-line reentrancy-benign
-        aurora.transfer(msg.sender, balance);
+        aurora.safeTransfer(msg.sender, balance);
 
         hasClaimed[_epochId][msg.sender] = true;
     }
