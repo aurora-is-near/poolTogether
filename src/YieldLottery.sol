@@ -79,7 +79,7 @@ contract YieldLottery {
         Status status;
     }
 
-    event Initialized(uint256 Window, uint256 Price);
+    event Initialized(uint256 window, uint256 price);
     event Staked(address indexed user, uint256 indexed epochId, uint64 indexed startId);
     event NewAdmin(address indexed admin);
     event NewTicketPrice(uint256 indexed price);
