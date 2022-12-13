@@ -137,7 +137,6 @@ contract YieldLottery {
         Epoch memory currentEpoch = epochs[epochId];
         require(currentEpoch.status == Status.Active, "NO_LIVE_EPOCHS");
         require(currentEpoch.startTime + openWindow > block.timestamp, "EPOCH_CLOSED");
-        // slither-disable-next-line reentrancy-benign reentrancy-events
         aurora.safeTransferFrom(msg.sender, address(this), cost);
         Position memory newPosition = Position({
             startId: uint64(currentEpoch.initialBal / ticketPrice),
@@ -168,9 +167,7 @@ contract YieldLottery {
                 uint256 prize = epoch.finalBal - epoch.initialBal;
                 balance += prize;
                 for (uint256 j = 0; j < streamTokens.length;) {
-                     // slither-disable-next-line calls-loop
                     uint256 bal = streamTokens[j].balanceOf(address(this));
-                    // slither-disable-next-line reentrancy-benign reentrancy-events
                     streamTokens[j].safeTransfer(msg.sender, bal);
                     unchecked {
                         j++;
@@ -181,7 +178,6 @@ contract YieldLottery {
                 i++;
             }
         }
-        // slither-disable-next-line reentrancy-benign reentrancy-events
         aurora.safeTransfer(msg.sender, balance);
 
         hasClaimed[_epochId][msg.sender] = true;
@@ -210,7 +206,6 @@ contract YieldLottery {
     // @notice Allows admin to withdraw tokens once the 2 day delay is over
     // @notice _epochId Allows function to know which epochId to update
     function withdraw(uint256 _epochId) external onlyAdmin {
-        // slither-disable-next-line reentrancy-benign
         jetStaking.withdrawAll();
         epochs[_epochId].withdrawalOpen = true;
     }
