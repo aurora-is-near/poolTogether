@@ -1,0 +1,3 @@
+{
+  "detectors_to_exclude": "reentrancy-no-eth,reentrancy-benign,reentrancy-events,calls-loop"
+}

@@ -113,12 +113,13 @@ contract YieldLottery {
         ticketPrice = _ticketPrice;
         aurora = IERC20(_aurora);
         jetStaking = IJetStaking(_jetStaking);
-        for (uint256 i; i < _streamTokens.length;) {
+        for (uint256 i = 0; i < _streamTokens.length;) {
             streamTokens.push(IERC20(_streamTokens[i]));
             unchecked {
                 i++;
             }
         }
+        // slither-disable-next-line unused-return
         aurora.approve(address(jetStaking), type(uint256).max);
         newEpoch();
         paused = false;
@@ -135,6 +136,7 @@ contract YieldLottery {
         uint256 epochId = epochs.length - 1;
         uint256 cost = _tickets * ticketPrice;
         Epoch memory currentEpoch = epochs[epochId];
+        // slither-disable-next-line incorrect-equality
         require(currentEpoch.status == Status.Active, "NO_LIVE_EPOCHS");
         require(currentEpoch.startTime + openWindow > block.timestamp, "EPOCH_CLOSED");
         aurora.safeTransferFrom(msg.sender, address(this), cost);
