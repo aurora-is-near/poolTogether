@@ -158,6 +158,7 @@ contract YieldLottery {
     //      yield generated.
     function claimTickets(uint256 _epochId) public {
         Epoch memory epoch = epochs[_epochId];
+        // slither-disable-next-line incorrect-equality
         require(epoch.status == Status.Ended, "EPOCH_NOT_CONCLUDED");
         require(epoch.withdrawalOpen, "WITHDRAWAL_UNAVAILABLE");
         require(!hasClaimed[_epochId][msg.sender], "ALREADY_CLAIMED");
