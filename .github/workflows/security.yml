@@ -1,4 +1,4 @@
-name: "Contract Security Analysis"
+name: Security Analysis
 
 on:
   push:
@@ -12,6 +12,6 @@ on:
 
 jobs:
   security_analysis:
-    name: "Security Check"
+    name: "Shared"
     uses: aurora-is-near/.github/.github/workflows/security_analysis.yml@master
     secrets: inherit
