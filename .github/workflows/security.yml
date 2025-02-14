@@ -1,4 +1,5 @@
----
+name: "Contract Security Analysis"
+
 on:
   push:
     branches:
@@ -9,9 +10,8 @@ on:
   schedule:
     - cron: "30 10 * * *"
 
-name: "Contract Security Analysis"
 jobs:
-  contract_analysis:
+  security_analysis:
     name: "Security Check"
-    uses: aurora-is-near/.github/.github/workflows/contract_analysis.yml@master
+    uses: aurora-is-near/.github/.github/workflows/security_analysis.yml@master
     secrets: inherit
